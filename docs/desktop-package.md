@@ -80,6 +80,37 @@ powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 2. 由自动打 tag 工作流生成版本（或手动创建 tag）
 3. `desktop-release` 工作流自动构建并把两个平台安装包附加到对应 GitHub Release
 
+## 发版前可复现验证（当前 PR 验收）
+
+桌面端自动更新链路依赖 Windows NSIS 安装产物、`latest.yml` 与 `*.blockmap` 元数据。建议在变更提交前先补一遍本地验证命令：
+
+1. 先构建 Web 静态产物（桌面端主窗口与设置页入口依赖）
+
+```bash
+cd apps/dsa-web
+npm ci
+npm run lint
+npm run build
+```
+
+2. 回到桌面端，补齐依赖、运行 preload 单测、再执行 Electron 打包
+
+```bash
+cd ../apps/dsa-desktop
+npm ci
+npm test
+npm run build
+```
+
+3. 检查更新元数据是否产出
+
+```bash
+ls -1 dist | sort
+ls -1 dist/*.yml dist/*.blockmap 2>/dev/null || true
+```
+
+4. Windows/NSIS 产物（`*.exe`）及 GitHub Release 侧元数据一致性，请在 Windows 环境通过现有 `.github/workflows/desktop-release.yml` 的发布链路复核。
+
 ### 分步打包
 
 1) 构建 React UI
