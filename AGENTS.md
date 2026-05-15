@@ -13,6 +13,7 @@
   - 部署与流水线改动在 `scripts/`、`.github/workflows/`、`docker/`
 - 未经明确确认，不执行 `git commit`、`git tag`、`git push`。
 - commit message 使用英文，不添加 `Co-Authored-By`。
+- PR title 建议使用 `<类型>: <修改内容>` 格式，例如 `fix: 修复大盘分析历史记录丢失`；类型优先使用 `fix`/`feat`/`refactor`/`docs`/`chore`/`test`/`ci`。标题应描述实际变更，建议不添加 `[codex]`、`codex`、`autocode`、`copilot` 或其他工具/agent 来源前缀。
 - 不写死密钥、账号、路径、模型名、端口或环境差异逻辑。
 - 优先复用现有模块、配置入口、脚本和测试，不新增平行实现。
 - 默认稳定性优先于“顺手优化”；非当前任务直接需要的重构、抽象和基础设施迁移一律克制。
@@ -219,10 +220,11 @@ gh run view <run_id> --log-failed
 - PR 审查默认顺序：
   1. 必要性
   2. 关联性
-  3. 描述完整性（对照 `.github/PULL_REQUEST_TEMPLATE.md`）
-  4. 验证证据
-  5. 实现正确性
-  6. 合入判定
+  3. 标题建议（`<类型>: <修改内容>`，且不含工具/agent 前缀；不作为硬性阻断项）
+  4. 描述完整性（对照 `.github/PULL_REQUEST_TEMPLATE.md`）
+  5. 验证证据
+  6. 实现正确性
+  7. 合入判定
 - 对 `fix` 类 PR，必须说明：原问题、根因、修复点、回归风险。
 - 合入阻断条件：
   - 正确性或安全性问题
