@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from concurrent.futures import Future
+import threading
 import time
 import unittest
 from types import SimpleNamespace
@@ -262,20 +263,30 @@ class ExtensionRuntimeTestCase(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "task_submission_failed")
 
-    def test_timeout_waits_for_handler_before_returning_failure(self):
+    def test_timeout_returns_failure_without_waiting_for_handler(self):
+        started = threading.Event()
+        completed = threading.Event()
         events = []
 
         def slow(payload, context):
+            started.set()
             events.append("started")
-            time.sleep(0.05)
+            time.sleep(0.2)
             events.append("done")
+            completed.set()
             return {"done": True}
 
+        start_at = time.perf_counter()
         result = self._runtime(ActionDefinition("test.slow", "test", "Slow", slow, timeout_seconds=0.01)).execute_action(
             "test.slow"
         )
+        duration = time.perf_counter() - start_at
 
+        self.assertLess(duration, 0.1)
         self.assertEqual(result.error.code, "timeout")
+        self.assertTrue(started.is_set())
+        self.assertFalse(completed.is_set())
+        self.assertTrue(completed.wait(1))
         self.assertEqual(events, ["started", "done"])
 
     def test_builtin_runtime_registers_core_actions(self):

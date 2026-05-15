@@ -53,7 +53,9 @@ Skill 分层为 `Domain Skill`（金融原则与报告口径）、`Workflow Skil
 
 ## Guardrails
 
-MVP 已实现 Action allowlist、confirmation guard、timeout guard 和 call depth guard。后续再加入更细权限域、批量限额、通知限额、成本预算和租户级策略。
+MVP 已实现 Action allowlist、confirmation guard、timeout guard 和 call depth guard。`timeout` 为执行级别限时等待：当同步 handler 超出预算时，`execute_action` 立即返回 `timeout`，不阻塞调用方；但由于 Python 运行时限制，执行中的线程不会被强制中断，调用完成后会自然结束。后续再加入更细权限域、批量限额、通知限额、成本预算和租户级策略。
+
+本轮新增能力仅覆盖 Extension Runtime MVP 与 `TaskQueue` 桥接，不修改模型名、provider、`Base URL`、LLM 运行时入口、`.env` 命名/解析、默认模型策略或配置迁移逻辑；相关兼容风险为无变更场景，若后续涉及配置迁移需补充兼容与回退路径。
 
 ## 内置 Action MVP
 

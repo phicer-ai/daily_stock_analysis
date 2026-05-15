@@ -164,11 +164,17 @@ class ExtensionRuntime:
 
     def _call_with_timeout(self, action, payload, context):
         timeout_seconds = self._timeout_seconds(action, context)
-        started_at = time.monotonic()
-        result = action.handler(payload, context)
-        if timeout_seconds > 0 and time.monotonic() - started_at > timeout_seconds:
-            raise concurrent.futures.TimeoutError()
-        return result
+        if timeout_seconds <= 0:
+            return action.handler(payload, context)
+
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(action.handler, payload, context)
+        try:
+            return future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError:
+            raise
+        finally:
+            executor.shutdown(wait=False)
 
     def _preflight(self, action, payload, context, run_id, input_hash):
         plugin_failure = self._check_plugin_status(action, run_id, input_hash)

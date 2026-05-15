@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [文档] 明确 `MARKET_REVIEW_COLOR_SCHEME` 仅为大盘复盘展示配置，枚举为 `green_up`/`red_up`（默认 `green_up`），属于文案与颜色语义层面变更；本次未调整模型名、provider、Base URL、LLM 运行时迁移或运行时清理逻辑。
 - [新功能] 新增金融 Extension Runtime MVP，定义 ActionContext/ActionResult 契约、权限/超时/调用深度守卫、内置 DSA Action 声明和异步任务桥接。
 - [文档] 新增 Extension Runtime 架构文档，收敛 Plugin、Skill、Action、Contribution、Evidence Store 与 AlphaSift 后续接入边界。
+- [修复] Extension Runtime timeout guard 改为并发限时等待并立即返回 `timeout`，避免同步 handler 将调用线程阻塞；并明确该轮变更不涉及模型/provider/Base URL/配置迁移兼容风险。
 
 ## [3.16.0] - 2026-05-10
 
