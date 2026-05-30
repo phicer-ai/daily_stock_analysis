@@ -14,6 +14,7 @@ For English contributors: please fill in English. All fields marked (EN) accept 
 
 > 文档 / 治理类边界澄清 PR（例如本 issue）请仅勾选 `docs`，不得勾选 `feat` 或 `fix`，并按规则在 Issue Link 中使用 `Refs #<issue_number>`。
 > 该约束用于防止将本类文档澄清 PR 误标为 `feat` 或使用 `Closes` / `Fixes` 自动关闭 issue。请确保仅保留 `docs` 一项勾选。
+> 若提交的是 docs-only PR，请在 PR 描述与 Issue Link 统一使用 `docs + Refs #<issue_number>` 表述，避免误将边界说明 PR 合并后关闭未完成的 runtime issue。
 
 > 若该 PR 为 docs-only（含本 issue 边界澄清），请务必在 Issue Link 仅填写 `Refs #<issue_number>` 或空，不得填写 `Closes` / `Fixes`（避免误关闭 Issue）。
 > 示例（本 Issue #1497 的边界澄清）：
@@ -37,6 +38,7 @@ For English contributors: please fill in English. All fields marked (EN) accept 
 以下内容仅适用于 **docs/governance-only** PR，非 docs/governance PR 可跳过：
 
 - [ ] **仅说明边界，不新增 runtime 行为**：说明性 PR 不承担 `SCHEDULE_TIME` 或其他运行时能力交付。
+- [ ] **不纳入运行时能力验收**：本 PR 验收不得包含 `SCHEDULE_TIME` 解析、cron 触发、非法格式兼容等 runtime 行为核验项。
 - [ ] **docs-only 自检清单**：边界说明与实际行为一致、双语文档同步、`docs/CHANGELOG.md` 同步（如涉及用户可见文档）；
 - [ ] **Issue 链接语义正确**：文档/治理说明类 PR 请使用 `Refs #<issue_number>`（或无 issue 说明），并将 PR 类型限定为 `docs`，避免误关闭 Issue。
 
