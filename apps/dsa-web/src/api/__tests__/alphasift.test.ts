@@ -74,7 +74,15 @@ describe('alphasiftApi', () => {
     get.mockResolvedValueOnce({
       data: {
         enabled: true,
-        strategies: [{ id: 'dual_low', name: 'Dual Low', market_scope: ['cn'] }],
+        strategies: [
+          {
+            id: 'dual_low',
+            name: 'Dual Low',
+            description: 'value',
+            category: 'value',
+            market_scope: ['cn'],
+          },
+        ],
         strategy_count: 1,
       },
     });
@@ -82,6 +90,8 @@ describe('alphasiftApi', () => {
     const result = await alphasiftApi.getStrategies();
 
     expect(get).toHaveBeenCalledWith('/api/v1/alphasift/strategies');
+    expect(result.enabled).toBe(true);
+    expect(result.strategyCount).toBe(1);
     expect(result.strategies[0].id).toBe('dual_low');
     expect(result.strategies[0].marketScope).toEqual(['cn']);
   });

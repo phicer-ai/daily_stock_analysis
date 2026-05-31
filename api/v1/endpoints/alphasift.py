@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import importlib
+import inspect
+import math
 import subprocess
 import sys
 from dataclasses import asdict, is_dataclass
@@ -17,6 +19,7 @@ from src.config import Config, DEFAULT_ALPHASIFT_INSTALL_SPEC
 
 router = APIRouter()
 
+ALPHASIFT_DSA_ADAPTER_MODULE = "alphasift.dsa_adapter"
 ALLOWED_ALPHASIFT_INSTALL_SPECS = frozenset({DEFAULT_ALPHASIFT_INSTALL_SPEC})
 
 
@@ -26,16 +29,29 @@ class AlphaSiftScreenRequest(BaseModel):
     max_results: int = Field(20, ge=1, le=100)
 
 
+class AlphaSiftStrategyResponse(BaseModel):
+    id: str
+    name: str = ""
+    title: str = ""
+    description: str = ""
+    category: str = ""
+    tag: str = ""
+    tags: List[str] = Field(default_factory=list)
+    market_scope: List[str] = Field(default_factory=list)
+    market: str = ""
+
+
 @router.get("/status")
 def alphasift_status(config: Config = Depends(get_config_dep)) -> Dict[str, Any]:
     adapter_status: Dict[str, Any] = {}
     available = _is_alphasift_available()
     if available:
         try:
-            adapter_status = _get_dsa_adapter().get_status()
+            adapter_status = _call_alphasift_status()
             available = bool(adapter_status.get("available", True))
-        except HTTPException:
+        except Exception:
             available = False
+
     return {
         "enabled": bool(config.alphasift_enabled),
         "available": available,
@@ -43,6 +59,17 @@ def alphasift_status(config: Config = Depends(get_config_dep)) -> Dict[str, Any]
         "contract_version": adapter_status.get("contract_version"),
         "version": adapter_status.get("version"),
         "strategy_count": adapter_status.get("strategy_count"),
+    }
+
+
+@router.get("/strategies")
+def alphasift_strategies(config: Config = Depends(get_config_dep)) -> Dict[str, Any]:
+    _ensure_alphasift_enabled(config)
+    strategies = _list_strategies()
+    return {
+        "enabled": True,
+        "strategies": strategies,
+        "strategy_count": len(strategies),
     }
 
 
@@ -129,61 +156,61 @@ def _validate_install_spec(raw_install_spec: str) -> str:
     return install_spec
 
 
-@router.get("/strategies")
-def alphasift_strategies(config: Config = Depends(get_config_dep)) -> Dict[str, Any]:
-    _ensure_alphasift_enabled(config)
-    adapter = _get_dsa_adapter()
-    strategies = adapter.list_strategies()
-    return {
-        "enabled": True,
-        "strategies": strategies,
-        "strategy_count": len(strategies),
-    }
-
-
 @router.post("/screen")
 def alphasift_screen(
     request: AlphaSiftScreenRequest,
     config: Config = Depends(get_config_dep),
 ) -> Dict[str, Any]:
     _ensure_alphasift_enabled(config)
+    _ensure_supported_market(request.market)
+    _ensure_supported_strategy(request.strategy)
 
     adapter = _get_dsa_adapter()
+    screen = _get_adapter_callable(adapter, "screen", "screen() 不可调用。")
     try:
-        raw = adapter.screen(
-            request.strategy,
-            market=request.market,
-            max_results=request.max_results,
-            use_llm=True,
-        )
+        raw = _call_alphasift_screen(screen, request.strategy, request.market, request.max_results)
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
             detail={"error": "alphasift_screen_rejected", "message": str(exc)},
         ) from exc
+    except (TypeError, KeyError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "alphasift_invalid_input", "message": f"AlphaSift 参数非法：{exc}"},
+        ) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=424,
             detail={"error": "alphasift_screen_failed", "message": f"AlphaSift 选股运行失败：{exc}"},
         ) from exc
-    candidates = _normalize_candidates(raw)
+
+    raw_data = _to_plain(raw)
+    if not isinstance(raw_data, dict):
+        raw_data = {"candidates": raw_data}
+    raw_data = _remove_non_finite_json_values(raw_data)
+
+    candidates = _normalize_candidates(raw_data)
+    selected = candidates[: request.max_results]
     return {
         "enabled": True,
-        "candidates": candidates[: request.max_results],
-        "candidate_count": len(candidates[: request.max_results]),
-        "run_id": raw.get("run_id") if isinstance(raw, dict) else None,
-        "strategy": raw.get("strategy") if isinstance(raw, dict) else request.strategy,
-        "market": raw.get("market") if isinstance(raw, dict) else request.market,
-        "snapshot_count": raw.get("snapshot_count") if isinstance(raw, dict) else None,
-        "after_filter_count": raw.get("after_filter_count") if isinstance(raw, dict) else None,
-        "llm_ranked": raw.get("llm_ranked") if isinstance(raw, dict) else None,
-        "llm_market_view": raw.get("llm_market_view") if isinstance(raw, dict) else "",
-        "llm_selection_logic": raw.get("llm_selection_logic") if isinstance(raw, dict) else "",
-        "llm_portfolio_risk": raw.get("llm_portfolio_risk") if isinstance(raw, dict) else "",
-        "llm_coverage": raw.get("llm_coverage") if isinstance(raw, dict) else None,
-        "llm_parse_errors": raw.get("llm_parse_errors", []) if isinstance(raw, dict) else [],
-        "warnings": raw.get("warnings", []) if isinstance(raw, dict) else [],
-        "source_errors": raw.get("source_errors", []) if isinstance(raw, dict) else [],
+        "candidates": selected,
+        "candidate_count": len(selected),
+        "run_id": raw_data.get("run_id"),
+        "strategy": raw_data.get("strategy") or request.strategy,
+        "market": raw_data.get("market") or request.market,
+        "snapshot_count": raw_data.get("snapshot_count"),
+        "after_filter_count": raw_data.get("after_filter_count"),
+        "llm_ranked": raw_data.get("llm_ranked"),
+        "llm_market_view": raw_data.get("llm_market_view") or "",
+        "llm_selection_logic": raw_data.get("llm_selection_logic") or "",
+        "llm_portfolio_risk": raw_data.get("llm_portfolio_risk") or "",
+        "llm_coverage": raw_data.get("llm_coverage"),
+        "llm_parse_errors": raw_data.get("llm_parse_errors") or [],
+        "warnings": raw_data.get("warnings") or [],
+        "source_errors": raw_data.get("source_errors") or [],
     }
 
 
@@ -197,49 +224,200 @@ def _ensure_alphasift_enabled(config: Config) -> None:
 
 def _is_alphasift_available() -> bool:
     try:
-        _import_alphasift()
+        _call_alphasift_status()
         return True
-    except HTTPException:
+    except Exception:
         return False
 
 
 def _import_alphasift() -> Any:
     try:
-        return importlib.import_module("alphasift")
+        return importlib.import_module(ALPHASIFT_DSA_ADAPTER_MODULE)
     except Exception as exc:
         raise HTTPException(
             status_code=424,
             detail={
                 "error": "alphasift_unavailable",
-                "message": f"AlphaSift 未安装或未挂载到当前 Python 环境，无法导入 alphasift：{exc}",
+                "message": f"AlphaSift 未安装或未挂载到当前 Python 环境，无法导入 {ALPHASIFT_DSA_ADAPTER_MODULE}：{exc}",
             },
         ) from exc
 
 
 def _get_dsa_adapter() -> Any:
-    alphasift = _import_alphasift()
-    adapter = getattr(alphasift, "dsa_adapter", None)
-    if adapter is None:
-        try:
-            adapter = importlib.import_module("alphasift.dsa_adapter")
-        except Exception as exc:
-            raise HTTPException(
-                status_code=424,
-                detail={
-                    "error": "alphasift_adapter_unavailable",
-                    "message": f"AlphaSift 已安装，但缺少 DSA 稳定适配层 alphasift.dsa_adapter：{exc}",
-                },
-            ) from exc
-    for attr in ("list_strategies", "screen"):
-        if not callable(getattr(adapter, attr, None)):
-            raise HTTPException(
-                status_code=424,
-                detail={
-                    "error": "alphasift_adapter_unavailable",
-                    "message": f"AlphaSift DSA 适配层缺少可调用接口：{attr}",
-                },
-            )
+    adapter = _import_alphasift()
+    for attr in ("get_status", "list_strategies", "screen"):
+        _get_adapter_callable(adapter, attr, f"{attr}() 不可调用。")
     return adapter
+
+
+def _get_adapter_callable(adapter: Any, name: str, missing_error: str) -> Any:
+    callable_obj = getattr(adapter, name, None)
+    if not callable(callable_obj):
+        raise HTTPException(
+            status_code=424,
+            detail={"error": "alphasift_unavailable", "message": f"已导入 alphasift 适配层，但 {missing_error}"},
+        )
+    return callable_obj
+
+
+def _call_alphasift_status() -> Dict[str, Any]:
+    adapter = _import_alphasift()
+    get_status = _get_adapter_callable(adapter, "get_status", "get_status() 不可调用。")
+    try:
+        result = _to_plain(get_status())
+    except Exception as exc:
+        raise HTTPException(
+            status_code=424,
+            detail={
+                "error": "alphasift_unavailable",
+                "message": f"AlphaSift 适配层 get_status 调用失败：{exc}",
+            },
+        ) from exc
+    if not isinstance(result, dict):
+        return {}
+    return result
+
+
+def _list_strategies() -> List[Dict[str, Any]]:
+    adapter = _get_dsa_adapter()
+    list_strategies = _get_adapter_callable(adapter, "list_strategies", "list_strategies() 不可调用。")
+    raw = _to_plain(list_strategies())
+    if not isinstance(raw, list):
+        raise HTTPException(
+            status_code=424,
+            detail={"error": "alphasift_invalid_result", "message": "AlphaSift list_strategies 返回非列表。"},
+        )
+
+    normalized: List[Dict[str, Any]] = []
+    for item in raw:
+        strategy = _normalize_strategy(item)
+        if not strategy.get("id"):
+            continue
+        normalized.append(strategy)
+    return normalized
+
+
+def _normalize_strategy(raw: Any) -> Dict[str, Any]:
+    item = _to_plain(raw)
+    if isinstance(item, str):
+        return _strategy_model(id=item, name=item, title=item)
+    if not isinstance(item, dict):
+        value = str(item)
+        return _strategy_model(id=value, name=value, title=value)
+
+    tags = item.get("tags") if isinstance(item.get("tags"), list) else []
+    market_scope = item.get("market_scope") or item.get("marketScope") or []
+    if not isinstance(market_scope, list):
+        market_scope = [str(market_scope)] if market_scope else []
+
+    strategy_id = str(
+        item.get("id")
+        or item.get("strategy")
+        or item.get("strategy_id")
+        or item.get("name")
+        or "",
+    )
+    name = str(item.get("name") or item.get("title") or strategy_id)
+    category = str(item.get("category") or item.get("tag") or "")
+    return _strategy_model(
+        id=strategy_id,
+        name=name,
+        title=str(item.get("title") or name),
+        description=str(item.get("description") or ""),
+        category=category,
+        tag=str(item.get("tag") or category),
+        tags=[str(tag) for tag in tags],
+        market_scope=[str(market) for market in market_scope],
+        market=str(item.get("market") or item.get("market_id") or ""),
+    )
+
+
+def _strategy_model(**kwargs: Any) -> Dict[str, Any]:
+    normalized = AlphaSiftStrategyResponse(**kwargs)
+    try:
+        return normalized.model_dump()
+    except AttributeError:
+        return normalized.dict()
+
+
+def _ensure_supported_strategy(strategy: str) -> None:
+    strategies = _list_strategies()
+    if not strategies:
+        return
+
+    ids = {item.get("id") for item in strategies if item.get("id")}
+    if strategy in ids:
+        return
+
+    # 兼容“策略列表为空时手动输入”以及“用户手动覆盖策略参数”场景，
+    # 策略由适配层进行最终校验，因此在列表外仍保持透传。
+
+
+def _call_alphasift_screen(screen: Any, strategy: str, market: str, max_results: int) -> Any:
+    signature = inspect.signature(screen)
+    params = signature.parameters
+    supports_var_kwargs = any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in params.values())
+    positional_params = [
+        parameter
+        for parameter in params.values()
+        if parameter.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    supports_var_positional = any(parameter.kind == inspect.Parameter.VAR_POSITIONAL for parameter in params.values())
+
+    supports_max_results = "max_results" in params or supports_var_kwargs
+    supports_max_output = "max_output" in params or supports_var_kwargs
+    supports_use_llm = "use_llm" in params or supports_var_kwargs
+
+    kwargs: Dict[str, Any] = {"market": market}
+    if supports_max_results:
+        kwargs["max_results"] = max_results
+    elif supports_max_output:
+        kwargs["max_output"] = max_results
+    else:
+        kwargs["max_results"] = max_results
+
+    if supports_use_llm:
+        kwargs["use_llm"] = True
+
+    try:
+        return screen(strategy, **kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        signature_mismatch = ("keyword" in message and "argument" in message) or (
+            "positional" in message and "given" in message
+        )
+        if not signature_mismatch:
+            raise
+        if not (supports_var_kwargs or supports_var_positional or len(positional_params) >= 3):
+            raise
+        return screen(strategy, market, max_results)
+
+
+def _ensure_supported_market(market: str) -> None:
+    status = _call_alphasift_status()
+    supported_markets = status.get("supported_markets") or status.get("markets") or status.get("market")
+    if not supported_markets:
+        return
+
+    normalized: List[Any]
+    if isinstance(supported_markets, str):
+        normalized = [supported_markets]
+    elif isinstance(supported_markets, (list, tuple, set)):
+        normalized = list(supported_markets)
+    else:
+        normalized = []
+
+    if market not in normalized:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "alphasift_invalid_market",
+                "message": (
+                    f"市场 {market} 不在 AlphaSift 适配层支持范围内"
+                    f"（支持市场：{', '.join(map(str, normalized)) or '未知'}）。"
+                ),
+            },
+        )
 
 
 def _normalize_candidates(raw: Any) -> List[Dict[str, Any]]:
@@ -256,7 +434,7 @@ def _normalize_candidates(raw: Any) -> List[Dict[str, Any]]:
 
 
 def _normalize_candidate(raw: Any, rank: int) -> Dict[str, Any]:
-    item = _to_plain(raw)
+    item = _remove_non_finite_json_values(_to_plain(raw))
     if not isinstance(item, dict):
         item = {"code": str(item)}
     source = item.get("raw") if isinstance(item.get("raw"), dict) else item
@@ -334,6 +512,18 @@ def _to_plain(value: Any) -> Any:
         return value.dict()
     if isinstance(value, list):
         return [_to_plain(item) for item in value]
+    return value
+
+
+def _remove_non_finite_json_values(value: Any) -> Any:
+    if isinstance(value, list):
+        return [_remove_non_finite_json_values(item) for item in value]
+    if isinstance(value, tuple):
+        return [_remove_non_finite_json_values(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _remove_non_finite_json_values(item) for key, item in value.items()}
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
     return value
 
 

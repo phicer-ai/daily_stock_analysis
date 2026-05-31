@@ -321,11 +321,17 @@ const SettingsPage: React.FC = () => {
   const alphasiftEnabled = String(alphasiftItem?.value ?? '').trim().toLowerCase() === 'true';
   const alphasiftInstallSpec = String(alphasiftInstallSpecItem?.value || '').trim();
   const alphasiftInstallSpecAllowed = alphasiftInstallSpec === TRUSTED_ALPHASIFT_INSTALL_SPEC;
+  const alphasiftInstallSpecLabel = !alphasiftInstallSpec
+    ? '未配置'
+    : alphasiftInstallSpecAllowed
+      ? '受信任 AlphaSift GitHub 仓库'
+      : '已配置（敏感值已隐藏）';
   const hasConfiguredChannels = Boolean((rawActiveItemMap.get('LLM_CHANNELS') || '').trim());
   const hasLitellmConfig = Boolean((rawActiveItemMap.get('LITELLM_CONFIG') || '').trim());
 
-  // Hide channel-managed and legacy provider-specific LLM keys from the
-  // generic form only when channel config is the active runtime source.
+  // UI rendering rule only: hide channel-managed and legacy provider-specific
+  // LLM keys from generic fields when channel mode is active. This does not
+  // alter save/refresh payloads or config migration/rollback behavior.
   const LLM_CHANNEL_KEY_RE = /^LLM_[A-Z0-9_]+_(PROTOCOL|BASE_URL|API_KEY|API_KEYS|MODELS|EXTRA_HEADERS|ENABLED)$/;
   const AI_MODEL_HIDDEN_KEYS = new Set([
     'LLM_CHANNELS',
@@ -507,10 +513,25 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleSaveConfig = async () => {
-    const changedKeys = new Set(getChangedItems().map((item) => item.key));
+    const changedItems = getChangedItems();
+    const changedAlphaSiftItem = changedItems.find((item) => item.key === 'ALPHASIFT_ENABLED');
     const result = await save();
-    if (result.success && changedKeys.has('ALPHASIFT_ENABLED')) {
+    if (!result.success || !changedAlphaSiftItem) {
+      return;
+    }
+
+    try {
+      const isAlphaSiftEnabled = changedAlphaSiftItem.value.trim().toLowerCase() === 'true';
       notifyAlphaSiftConfigChanged();
+      if (isAlphaSiftEnabled) {
+        await alphasiftApi.install();
+        setEnvBackupActionSuccess('已开启 AlphaSift 选股，并完成依赖检查。');
+        return;
+      }
+
+      setEnvBackupActionSuccess('已关闭 AlphaSift 选股。');
+    } catch (error: unknown) {
+      setEnvBackupActionError(getParsedApiError(error));
     }
   };
 
@@ -665,11 +686,13 @@ const SettingsPage: React.FC = () => {
                       。开启后可在左侧导航进入“选股”，实际策略和数据处理仍由 AlphaSift 自己负责。
                     </p>
                     <p className="mt-1 text-xs leading-6 text-muted-text">
-                      安装来源：<code className="rounded bg-background/60 px-1 py-0.5 font-mono">{alphasiftInstallSpec || '未配置'}</code>
+                      安装来源：<span className="rounded bg-background/60 px-1 py-0.5">{alphasiftInstallSpecLabel}</span>
                     </p>
                     {!alphasiftInstallSpecAllowed ? (
                       <p className="mt-1 text-xs leading-6 text-amber-700 dark:text-amber-300">
-                        请把 ALPHASIFT_INSTALL_SPEC 配置为受信任的 AlphaSift GitHub 仓库；本地路径或 wheel 需先手动安装。
+                        {alphasiftInstallSpec
+                          ? '安装来源已隐藏；自动安装仅接受受信任 AlphaSift GitHub 仓库，自定义来源需先手动安装。'
+                          : '请把 ALPHASIFT_INSTALL_SPEC 配置为受信任的 AlphaSift GitHub 仓库；本地路径或 wheel 需先手动安装。'}
                       </p>
                     ) : null}
                     <p className="mt-2 text-xs leading-6 text-amber-700 dark:text-amber-300">

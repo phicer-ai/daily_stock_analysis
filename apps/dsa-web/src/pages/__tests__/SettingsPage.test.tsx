@@ -173,7 +173,7 @@ vi.mock('../../components/settings', () => ({
       };
     };
   }) => (
-    <div>
+    <div data-testid={`settings-field-${item.key}`}>
       <div>{item.key}</div>
       {item.schema?.description ? <p>{item.schema.description}</p> : null}
       {item.schema?.options?.map((option) => {
@@ -783,7 +783,7 @@ describe('SettingsPage', () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
-  it('notifies alphasift status update after generic save when ALPHASIFT_ENABLED changes', async () => {
+  it('notifies alphasift status update and skips install after generic save when ALPHASIFT_ENABLED is set false', async () => {
     save.mockResolvedValue({ success: true });
     getChangedItems.mockReturnValue([{ key: 'ALPHASIFT_ENABLED', value: 'false' }]);
 
@@ -799,6 +799,26 @@ describe('SettingsPage', () => {
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(notifyAlphaSiftConfigChanged).toHaveBeenCalledTimes(1);
+    expect(alphasiftInstall).not.toHaveBeenCalled();
+  });
+
+  it('notifies alphasift status update and triggers install after generic save when ALPHASIFT_ENABLED is set true', async () => {
+    save.mockResolvedValue({ success: true });
+    getChangedItems.mockReturnValue([{ key: 'ALPHASIFT_ENABLED', value: 'true' }]);
+
+    useSystemConfigMock.mockReturnValue(buildSystemConfigState({
+      hasDirty: true,
+      dirtyCount: 1,
+      getChangedItems: () => [{ key: 'ALPHASIFT_ENABLED', value: 'true' }],
+    }));
+
+    render(<SettingsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /保存配置/ }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(notifyAlphaSiftConfigChanged).toHaveBeenCalledTimes(1);
+    expect(alphasiftInstall).toHaveBeenCalledTimes(1);
   });
 
   it('does not notify alphasift status when generic save updates other fields', async () => {
@@ -843,15 +863,15 @@ describe('SettingsPage', () => {
           },
           {
             key: 'ALPHASIFT_INSTALL_SPEC',
-            value: 'git+https://github.com/ZhuLinsen/alphasift.git',
+            value: 'git+https://github.com/ZhuLinsen/alphasift.git@2c76b2b6074ae3bae01d52e5e830a4af3e3246b2',
             rawValueExists: true,
             isMasked: false,
             schema: {
               key: 'ALPHASIFT_INSTALL_SPEC',
               category: 'data_source',
               dataType: 'string',
-              uiControl: 'text',
-              isSensitive: false,
+              uiControl: 'password',
+              isSensitive: true,
               isRequired: false,
               isEditable: true,
               options: [],
@@ -879,6 +899,59 @@ describe('SettingsPage', () => {
     );
     expect(notifyAlphaSiftConfigChanged).toHaveBeenCalledTimes(1);
     expect(refreshAfterExternalSave).toHaveBeenCalledWith(['ALPHASIFT_ENABLED']);
+  });
+
+  it('does not render raw AlphaSift install spec in the settings card', () => {
+    const privateInstallSpec = 'git+https://user:token@example.com/internal/alphasift.git';
+    const configState = buildSystemConfigState();
+    useSystemConfigMock.mockReturnValue(buildSystemConfigState({
+      itemsByCategory: {
+        ...configState.itemsByCategory,
+        data_source: [
+          {
+            key: 'ALPHASIFT_ENABLED',
+            value: 'true',
+            rawValueExists: true,
+            isMasked: false,
+            schema: {
+              key: 'ALPHASIFT_ENABLED',
+              category: 'data_source',
+              dataType: 'boolean',
+              uiControl: 'switch',
+              isSensitive: false,
+              isRequired: false,
+              isEditable: true,
+              options: [],
+              validation: {},
+              displayOrder: 16,
+            },
+          },
+          {
+            key: 'ALPHASIFT_INSTALL_SPEC',
+            value: privateInstallSpec,
+            rawValueExists: true,
+            isMasked: true,
+            schema: {
+              key: 'ALPHASIFT_INSTALL_SPEC',
+              category: 'data_source',
+              dataType: 'string',
+              uiControl: 'password',
+              isSensitive: true,
+              isRequired: false,
+              isEditable: true,
+              options: [],
+              validation: {},
+              displayOrder: 17,
+            },
+          },
+        ],
+      },
+    }));
+
+    render(<SettingsPage />);
+
+    expect(screen.getByText('已配置（敏感值已隐藏）')).toBeInTheDocument();
+    expect(screen.queryByText(privateInstallSpec)).not.toBeInTheDocument();
   });
 
   it('does not run AlphaSift install when enabling the config fails', async () => {
@@ -944,6 +1017,60 @@ describe('SettingsPage', () => {
             },
           },
           {
+            key: 'LITELLM_MODEL',
+            value: 'gpt-5.0',
+            rawValueExists: true,
+            isMasked: false,
+            schema: {
+              key: 'LITELLM_MODEL',
+              category: 'ai_model',
+              dataType: 'string',
+              uiControl: 'text',
+              isSensitive: false,
+              isRequired: false,
+              isEditable: true,
+              options: [],
+              validation: {},
+              displayOrder: 2,
+            },
+          },
+          {
+            key: 'OPENAI_BASE_URL',
+            value: 'https://api.openai.com/v1',
+            rawValueExists: true,
+            isMasked: false,
+            schema: {
+              key: 'OPENAI_BASE_URL',
+              category: 'ai_model',
+              dataType: 'string',
+              uiControl: 'text',
+              isSensitive: false,
+              isRequired: false,
+              isEditable: true,
+              options: [],
+              validation: {},
+              displayOrder: 3,
+            },
+          },
+          {
+            key: 'OPENAI_MODEL',
+            value: 'gpt-5.0',
+            rawValueExists: true,
+            isMasked: false,
+            schema: {
+              key: 'OPENAI_MODEL',
+              category: 'ai_model',
+              isMasked: false,
+              dataType: 'string',
+              uiControl: 'text',
+              isRequired: false,
+              isEditable: true,
+              options: [],
+              validation: {},
+              displayOrder: 4,
+            },
+          },
+          {
             key: 'LLM_MY_PROXY_API_KEY',
             value: 'sk-test',
             rawValueExists: true,
@@ -985,9 +1112,16 @@ describe('SettingsPage', () => {
 
     render(<SettingsPage />);
 
-    expect(await screen.findByTestId('llm-channel-editor-items')).toHaveTextContent(
-      'LLM_CHANNELS,LLM_MY_PROXY_API_KEY,LLM_MY_PROXY_MODELS',
-    );
+    const llmEditorItems = await screen.findByTestId('llm-channel-editor-items');
+    expect(llmEditorItems).toHaveTextContent('LLM_CHANNELS');
+    expect(llmEditorItems).toHaveTextContent('LITELLM_MODEL');
+    expect(llmEditorItems).toHaveTextContent('OPENAI_BASE_URL');
+    expect(llmEditorItems).toHaveTextContent('OPENAI_MODEL');
+    expect(llmEditorItems).toHaveTextContent('LLM_MY_PROXY_API_KEY');
+    expect(llmEditorItems).toHaveTextContent('LLM_MY_PROXY_MODELS');
+    expect(screen.queryByTestId('settings-field-LITELLM_MODEL')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-field-OPENAI_BASE_URL')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-field-OPENAI_MODEL')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-field-LLM_MY_PROXY_API_KEY')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-field-LLM_MY_PROXY_MODELS')).not.toBeInTheDocument();
   });

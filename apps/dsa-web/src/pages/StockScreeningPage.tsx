@@ -1,7 +1,12 @@
 import type React from 'react';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, CircleAlert, Play, PlusCircle, Search, SlidersHorizontal } from 'lucide-react';
-import { alphasiftApi, type AlphaSiftCandidate, type AlphaSiftScreenResponse, type AlphaSiftStrategy } from '../api/alphasift';
+import {
+  alphasiftApi,
+  type AlphaSiftCandidate,
+  type AlphaSiftScreenResponse,
+  type AlphaSiftStrategy,
+} from '../api/alphasift';
 import { AppPage, Button, InlineAlert } from '../components/common';
 
 const MARKETS = [{ id: 'cn', label: 'A 股' }];
@@ -34,6 +39,13 @@ const formatAmount = (value: unknown) => {
   return amount.toFixed(2);
 };
 
+const formatPercent = (value: unknown) => {
+  if (value == null || value === '' || Number.isNaN(Number(value))) {
+    return '-';
+  }
+  return `${(Number(value) * 100).toFixed(0)}%`;
+};
+
 const getCandidateReason = (item: AlphaSiftCandidate) => {
   if (item.reason) {
     return item.reason;
@@ -44,13 +56,6 @@ const getCandidateReason = (item: AlphaSiftCandidate) => {
     return summary;
   }
   return 'AlphaSift 返回候选，但没有给出文字摘要。请查看下方因子、风险和原始字段。';
-};
-
-const formatPercent = (value: unknown) => {
-  if (value == null || value === '' || Number.isNaN(Number(value))) {
-    return '-';
-  }
-  return `${(Number(value) * 100).toFixed(0)}%`;
 };
 
 const getSignal = (item: AlphaSiftCandidate) => {
@@ -75,15 +80,23 @@ const StockScreeningPage: React.FC = () => {
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [enabling, setEnabling] = useState(false);
+  const [loadingStrategies, setLoadingStrategies] = useState(false);
   const [error, setError] = useState('');
   const [strategyLoadError, setStrategyLoadError] = useState('');
 
   const selectedStrategy = useMemo(() => strategies.find((item) => item.id === strategy), [strategies, strategy]);
-  const selectedStrategyTitle = selectedStrategy?.name ?? '自定义策略';
-  const selectedStrategyTag = selectedStrategy?.category || selectedStrategy?.tags?.[0] || '自定义';
+  const selectedStrategyTitle = selectedStrategy?.name || selectedStrategy?.title || '自定义策略';
+  const selectedStrategyTag = selectedStrategy?.category || selectedStrategy?.tag || selectedStrategy?.tags?.[0] || '自定义';
   const displayedStrategy = selectedStrategy ? selectedStrategyTitle : `自定义策略 (${strategy})`;
 
+  const clearScreeningResults = () => {
+    setCandidates([]);
+    setScreenMeta(null);
+    setExpandedCode(null);
+  };
+
   const loadStrategies = useCallback(async () => {
+    setLoadingStrategies(true);
     try {
       setStrategyLoadError('');
       const result = await alphasiftApi.getStrategies();
@@ -97,19 +110,32 @@ const StockScreeningPage: React.FC = () => {
     } catch (err) {
       setStrategies([]);
       setStrategyLoadError(err instanceof Error ? err.message : 'AlphaSift 策略列表加载失败');
+    } finally {
+      setLoadingStrategies(false);
     }
   }, []);
 
   useEffect(() => {
+    let active = true;
     alphasiftApi
       .getStatus()
       .then((status) => {
+        if (!active) {
+          return;
+        }
         setEnabled(status.enabled);
         if (status.enabled) {
           void loadStrategies();
         }
       })
-      .catch(() => setEnabled(false));
+      .catch(() => {
+        if (active) {
+          setEnabled(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
   }, [loadStrategies]);
 
   const handleEnable = async () => {
@@ -130,6 +156,27 @@ const StockScreeningPage: React.FC = () => {
     } finally {
       setEnabling(false);
     }
+  };
+
+  const handleStrategyChange = (nextStrategy: string) => {
+    if (nextStrategy !== strategy) {
+      clearScreeningResults();
+    }
+    setStrategy(nextStrategy);
+  };
+
+  const handleMarketChange = (nextMarket: string) => {
+    if (nextMarket !== market) {
+      clearScreeningResults();
+    }
+    setMarket(nextMarket);
+  };
+
+  const handleMaxResultsChange = (nextMaxResults: number) => {
+    if (nextMaxResults !== maxResults) {
+      clearScreeningResults();
+    }
+    setMaxResults(nextMaxResults);
   };
 
   const handleSubmit = async () => {
@@ -201,32 +248,37 @@ const StockScreeningPage: React.FC = () => {
         </div>
 
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-          {strategies.map((item) => {
-            const selected = item.id === strategy;
-            return (
-              <button
-                key={item.id}
-                className={`min-h-28 rounded-xl border p-4 text-left transition-all ${
-                  selected
-                    ? 'border-cyan bg-cyan/10 shadow-[0_0_0_1px_hsl(var(--primary)/0.15),0_16px_36px_hsl(var(--primary)/0.12)]'
-                    : 'border-border/80 bg-surface/70 hover:border-cyan/45 hover:bg-hover/70'
-                }`}
-                type="button"
-                onClick={() => setStrategy(item.id)}
-              >
-                <span className="text-base font-semibold text-foreground">{item.name || item.id}</span>
-                <span className="mt-2 block text-sm leading-6 text-secondary-text">{item.description || item.id}</span>
-                <span className="mt-3 inline-flex text-xs font-semibold text-cyan">
-                  {item.category || item.tags?.[0] || item.id}
-                </span>
-              </button>
-            );
-          })}
-          {strategies.length === 0 ? (
+          {loadingStrategies ? (
+            <div className="rounded-xl border border-dashed border-border bg-surface/70 p-4 text-sm text-secondary-text">
+              正在读取可用策略...
+            </div>
+          ) : strategies.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-surface/70 p-4 text-sm text-secondary-text">
               {strategyLoadError || 'AlphaSift 策略列表暂未载入，可在下方手动输入策略参数。'}
             </div>
-          ) : null}
+          ) : (
+            strategies.map((item) => {
+              const selected = item.id === strategy;
+              return (
+                <button
+                  key={item.id}
+                  className={`min-h-28 rounded-xl border p-4 text-left transition-all ${
+                    selected
+                      ? 'border-cyan bg-cyan/10 shadow-[0_0_0_1px_hsl(var(--primary)/0.15),0_16px_36px_hsl(var(--primary)/0.12)]'
+                      : 'border-border/80 bg-surface/70 hover:border-cyan/45 hover:bg-hover/70'
+                  }`}
+                  type="button"
+                  onClick={() => handleStrategyChange(item.id)}
+                >
+                  <span className="text-base font-semibold text-foreground">{item.name || item.title || item.id}</span>
+                  <span className="mt-2 block text-sm leading-6 text-secondary-text">{item.description || item.id}</span>
+                  <span className="mt-3 inline-flex text-xs font-semibold text-cyan">
+                    {item.category || item.tag || item.tags?.[0] || item.id}
+                  </span>
+                </button>
+              );
+            })
+          )}
         </div>
       </section>
 
@@ -242,7 +294,7 @@ const StockScreeningPage: React.FC = () => {
             <select
               className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground outline-none transition-colors focus:border-cyan"
               value={market}
-              onChange={(event) => setMarket(event.target.value)}
+              onChange={(event) => handleMarketChange(event.target.value)}
             >
               {MARKETS.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -257,7 +309,7 @@ const StockScreeningPage: React.FC = () => {
             <input
               className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground outline-none transition-colors focus:border-cyan"
               value={strategy}
-              onChange={(event) => setStrategy(event.target.value)}
+              onChange={(event) => handleStrategyChange(event.target.value)}
             />
           </label>
 
@@ -269,7 +321,7 @@ const StockScreeningPage: React.FC = () => {
               min={1}
               max={100}
               value={maxResults}
-              onChange={(event) => setMaxResults(Number(event.target.value))}
+              onChange={(event) => handleMaxResultsChange(Number(event.target.value))}
             />
           </label>
 

@@ -9,6 +9,9 @@ export type AlphaSiftStatus = {
   enabled: boolean;
   available: boolean;
   installSpecIsDefault: boolean;
+  contractVersion?: string | null;
+  version?: string | null;
+  strategyCount?: number | null;
 };
 
 export type AlphaSiftInstallResponse = {
@@ -50,11 +53,14 @@ export type AlphaSiftCandidate = {
 export type AlphaSiftStrategy = {
   id: string;
   name: string;
+  title?: string;
   description: string;
   version?: string;
   category?: string;
+  tag?: string;
   tags?: string[];
   marketScope?: string[];
+  market?: string;
 };
 
 export type AlphaSiftStrategiesResponse = {
