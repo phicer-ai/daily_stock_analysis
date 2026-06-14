@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "project": {
+    "id": "daily-stock-analysis",
+    "name": "Daily Stock Analysis",
+    "category": "fullstack-project"
+  },
+  "roots": [
+    "AGENTS.md",
+    "main.py",
+    "server.py",
+    "webui.py",
+    "api",
+    "src",
+    "data_provider",
+    "bot",
+    "apps/dsa-web/src",
+    "apps/dsa-desktop",
+    "scripts",
+    "tests",
+    "docs"
+  ],
+  "entrypoints": [
+    "main.py",
+    "server.py",
+    "webui.py",
+    "api/app.py",
+    "api/v1/router.py",
+    "apps/dsa-web/src/main.tsx",
+    "apps/dsa-web/src/App.tsx",
+    "apps/dsa-desktop/main.js"
+  ],
+  "exclude": [
+    ".git",
+    ".codegraph/out",
+    ".codex",
+    ".venv",
+    "venv",
+    "env",
+    "ENV",
+    "__pycache__",
+    ".pytest_cache",
+    "node_modules",
+    "apps/dsa-web/node_modules",
+    "apps/dsa-desktop/node_modules",
+    "apps/dsa-web/dist",
+    "apps/dsa-desktop/dist",
+    "data",
+    "logs",
+    "reports",
+    "static",
+    "docs/specs",
+    "*.log",
+    "*.db",
+    "*.sqlite",
+    "*.sqlite3"
+  ],
+  "output": {
+    "json": ".codegraph/out/codegraph.json",
+    "markdown": ".codegraph/out/codegraph.md"
+  }
+}

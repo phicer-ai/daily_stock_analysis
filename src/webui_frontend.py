@@ -21,6 +21,7 @@ _FALSEY_ENV_VALUES = {"0", "false", "no", "off"}
 _BUILD_INPUT_FILES = (
     "package.json",
     "package-lock.json",
+    "pnpm-lock.yaml",
     "vite.config.ts",
     "tsconfig.json",
     "tsconfig.app.json",
@@ -31,6 +32,7 @@ _BUILD_INPUT_FILES = (
     "index.html",
 )
 _BUILD_INPUT_DIRS = ("src", "public")
+_SUPPORTED_JS_PACKAGE_MANAGERS = {"npm", "pnpm"}
 
 
 def _is_truthy_env(var_name: str, default: str = "true") -> bool:
@@ -121,10 +123,56 @@ def _run_frontend_commands(commands: Sequence[Sequence[str]], frontend_dir: Path
         return False
 
 
+def _select_js_package_manager(frontend_dir: Path) -> tuple[str, str | None]:
+    configured = os.getenv("DSA_JS_PACKAGE_MANAGER", "").strip().lower()
+    if configured and configured not in _SUPPORTED_JS_PACKAGE_MANAGERS:
+        logger.warning(
+            "未知 DSA_JS_PACKAGE_MANAGER=%s，支持值为 npm 或 pnpm，将自动选择可用包管理器",
+            configured,
+        )
+        configured = ""
+
+    if configured:
+        executable = shutil.which(configured)
+        return configured, executable
+
+    if (frontend_dir / "pnpm-lock.yaml").exists() and not (frontend_dir / "package-lock.json").exists():
+        executable = shutil.which("pnpm")
+        return "pnpm", executable
+
+    npm_path = shutil.which("npm")
+    if npm_path:
+        return "npm", npm_path
+
+    pnpm_path = shutil.which("pnpm")
+    if pnpm_path:
+        return "pnpm", pnpm_path
+
+    return "npm", None
+
+
+def _dependency_lock_file(frontend_dir: Path, package_manager: str) -> Path:
+    if package_manager == "pnpm":
+        return frontend_dir / "pnpm-lock.yaml"
+    return frontend_dir / "package-lock.json"
+
+
+def _install_command(package_manager_path: str, package_manager: str, frontend_dir: Path) -> list[str]:
+    if package_manager == "pnpm":
+        if (frontend_dir / "pnpm-lock.yaml").exists():
+            return [package_manager_path, "install", "--frozen-lockfile"]
+        return [package_manager_path, "install"]
+
+    if (frontend_dir / "package-lock.json").exists():
+        return [package_manager_path, "ci"]
+    return [package_manager_path, "install"]
+
+
 def _manual_build_command(frontend_dir: Path) -> str:
-    lock_file = frontend_dir / "package-lock.json"
-    install_cmd = "npm ci" if lock_file.exists() else "npm install"
-    return f'cd "{frontend_dir}" && {install_cmd} && npm run build'
+    package_manager, package_manager_path = _select_js_package_manager(frontend_dir)
+    executable = package_manager_path or package_manager
+    install_cmd = " ".join(_install_command(executable, package_manager, frontend_dir))
+    return f'cd "{frontend_dir}" && {install_cmd} && {executable} run build'
 
 
 def _has_static_assets(static_dir: Path) -> bool:
@@ -170,7 +218,7 @@ def prepare_webui_frontend_assets() -> bool:
     Prepare frontend assets for WebUI startup.
 
     Default mode (WEBUI_AUTO_BUILD=true):
-    - Run npm install/build when dependencies or sources changed,
+    - Run npm or pnpm install/build when dependencies or sources changed,
       or artifacts are missing.
 
     Manual mode (WEBUI_AUTO_BUILD=false):
@@ -206,13 +254,13 @@ def prepare_webui_frontend_assets() -> bool:
         logger.warning("可先手动检查前端目录或关闭 WEBUI_AUTO_BUILD")
         return False
 
-    npm_path = shutil.which("npm")
-    if not npm_path:
-        logger.warning("未检测到 npm，无法自动构建前端")
+    package_manager, package_manager_path = _select_js_package_manager(frontend_dir)
+    if not package_manager_path:
+        logger.warning("未检测到 %s，无法自动构建前端", package_manager)
         logger.warning("请先手动构建前端静态资源: %s", _manual_build_command(frontend_dir))
         return False
 
-    lock_file = frontend_dir / "package-lock.json"
+    lock_file = _dependency_lock_file(frontend_dir, package_manager)
     needs_install = _needs_dependency_install(
         frontend_dir=frontend_dir,
         package_json=package_json,
@@ -222,10 +270,9 @@ def prepare_webui_frontend_assets() -> bool:
 
     commands = []
     if needs_install:
-        lock_exists = (frontend_dir / "package-lock.json").exists()
-        commands.append([npm_path, "ci" if lock_exists else "install"])
+        commands.append(_install_command(package_manager_path, package_manager, frontend_dir))
     if needs_build:
-        commands.append([npm_path, "run", "build"])
+        commands.append([package_manager_path, "run", "build"])
 
     logger.info(
         "前端构建检查结果: needs_install=%s, needs_build=%s, artifact=%s",

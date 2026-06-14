@@ -7,6 +7,16 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDir, '../..');
 const shouldRunWebSmoke = !!process.env.DSA_WEB_SMOKE_PASSWORD;
 
+function resolvePackageManager() {
+  const forced = process.env.DSA_JS_PACKAGE_MANAGER;
+  if (forced === 'pnpm' || forced === 'npm') {
+    return forced;
+  }
+
+  const userAgent = process.env.npm_config_user_agent ?? '';
+  return userAgent.startsWith('pnpm/') ? 'pnpm' : 'npm';
+}
+
 function resolveBackendCommand() {
   if (process.env.DSA_WEB_SMOKE_BACKEND_CMD) {
     return process.env.DSA_WEB_SMOKE_BACKEND_CMD;
@@ -47,7 +57,7 @@ export default defineConfig({
           timeout: 120_000,
         },
         {
-          command: 'npm run dev -- --host 127.0.0.1 --port 4173',
+          command: `${resolvePackageManager()} run dev -- --host 127.0.0.1 --port 4173`,
           cwd: currentDir,
           url: 'http://127.0.0.1:4173',
           reuseExistingServer: !process.env.CI,

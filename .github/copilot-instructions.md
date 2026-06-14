@@ -24,8 +24,8 @@ If any instruction in this file conflicts with `AGENTS.md`, follow `AGENTS.md`.
 ## Validation
 
 - Backend changes: prefer `./scripts/ci_gate.sh`; at minimum run `python -m py_compile` on changed Python files and the closest deterministic tests.
-- Web changes: run `cd apps/dsa-web && npm ci && npm run lint && npm run build`.
-- Desktop changes: build web first, then desktop if feasible.
+- Web changes: run `cd apps/dsa-web && npm ci && npm run lint && npm run build`; from the repo root, the pnpm equivalent is `pnpm --filter dsa-web install && pnpm --filter dsa-web run lint && pnpm --filter dsa-web run build`.
+- Desktop changes: build web first, then desktop if feasible; the repo root also supports `pnpm --filter daily-stock-analysis-desktop install && pnpm --filter daily-stock-analysis-desktop run build`.
 - Review work should prioritize CI evidence (`gh pr checks`, workflow logs) before re-running local validation.
 - AI governance changes: run `python scripts/check_ai_assets.py`.
 
@@ -34,4 +34,4 @@ If any instruction in this file conflicts with `AGENTS.md`, follow `AGENTS.md`.
 - `AGENTS.md` is the single source of truth for repository AI collaboration rules.
 - `CLAUDE.md` must remain a symlink to `AGENTS.md`.
 - Use `.github/instructions/*.instructions.md` for path-specific guidance.
-- Current repository collaboration skills live in `.claude/skills/`; keep them aligned with `AGENTS.md`.
+- Current repository collaboration skills live in `.claude/skills/` and are mirrored in `.agents/skills/`; keep both aligned with `AGENTS.md`.

@@ -3,6 +3,10 @@
   "version": "3.21.0",
   "private": true,
   "main": "main.js",
+  "engines": {
+    "npm": ">=10",
+    "pnpm": ">=9"
+  },
   "scripts": {
     "dev": "electron .",
     "build": "electron-builder",

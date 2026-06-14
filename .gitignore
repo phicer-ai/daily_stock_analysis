@@ -80,8 +80,16 @@ verify_*.py
 !.claude/skills/
 !.claude/skills/**
 
+# ignore generic agent workspace artifacts, but keep shared repo skills versioned
+.agents/*
+!.agents/skills/
+!.agents/skills/**
+
 # ignore static files
 static/
 /apps/dsa-desktop/dist/
 /apps/dsa-desktop/node_modules/
 docs/specs/
+
+# Generated CodeGraph outputs
+.codegraph/out/

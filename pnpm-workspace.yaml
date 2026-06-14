@@ -1,0 +1,3 @@
+packages:
+  - "apps/dsa-web"
+  - "apps/dsa-desktop"

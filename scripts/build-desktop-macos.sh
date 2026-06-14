@@ -7,6 +7,24 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 export CSC_IDENTITY_AUTO_DISCOVERY="false"
 export ELECTRON_BUILDER_CACHE="${ROOT_DIR}/.electron-builder-cache"
 
+JS_PACKAGE_MANAGER="${DSA_JS_PACKAGE_MANAGER:-npm}"
+if [[ "${JS_PACKAGE_MANAGER}" != "npm" && "${JS_PACKAGE_MANAGER}" != "pnpm" ]]; then
+  echo "Unsupported DSA_JS_PACKAGE_MANAGER: ${JS_PACKAGE_MANAGER}. Use npm or pnpm."
+  exit 1
+fi
+if ! command -v "${JS_PACKAGE_MANAGER}" >/dev/null 2>&1; then
+  echo "${JS_PACKAGE_MANAGER} not found. Install it or set DSA_JS_PACKAGE_MANAGER to an available package manager."
+  exit 1
+fi
+
+run_package_exec() {
+  if [[ "${JS_PACKAGE_MANAGER}" == "pnpm" ]]; then
+    pnpm exec "$@"
+  else
+    npx "$@"
+  fi
+}
+
 echo "Building Electron desktop app (macOS)..."
 
 if [[ ! -d "${ROOT_DIR}/dist/backend/stock_analysis" ]]; then
@@ -32,7 +50,7 @@ install_desktop_dependencies() {
   local reason="$1"
 
   echo "Installing desktop dependencies (${reason})..."
-  npm install
+  "${JS_PACKAGE_MANAGER}" install
   mkdir -p node_modules
   package_lock_hash > node_modules/.dsa-package-lock.sha256
 }
@@ -81,9 +99,9 @@ fi
 
 echo "Building macOS target arch: ${MAC_ARCH:-default}"
 if [[ ${#ARCH_ARGS[@]} -gt 0 ]]; then
-  npx electron-builder --mac dmg "${ARCH_ARGS[@]}" --publish never
+  run_package_exec electron-builder --mac dmg "${ARCH_ARGS[@]}" --publish never
 else
-  npx electron-builder --mac dmg --publish never
+  run_package_exec electron-builder --mac dmg --publish never
 fi
 popd >/dev/null
 

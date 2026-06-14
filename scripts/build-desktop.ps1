@@ -1,5 +1,10 @@
 $ErrorActionPreference = 'Stop'
 
+$jsPackageManager = if ([string]::IsNullOrWhiteSpace($env:DSA_JS_PACKAGE_MANAGER)) { 'npm' } else { $env:DSA_JS_PACKAGE_MANAGER }
+if (($jsPackageManager -ne 'npm') -and ($jsPackageManager -ne 'pnpm')) {
+  throw "Unsupported DSA_JS_PACKAGE_MANAGER: $jsPackageManager. Use npm or pnpm."
+}
+
 $devModeKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock'
 $allowDev = 0
 $allowTrusted = 0
@@ -43,7 +48,7 @@ function Install-DesktopDependencies {
   if ($Clean -and (Test-Path 'node_modules')) {
     Remove-Item -Recurse -Force 'node_modules'
   }
-  npm install
+  & $jsPackageManager install
   if ($LASTEXITCODE -ne 0) {
     throw 'Desktop dependency installation failed.'
   }
@@ -91,7 +96,11 @@ if (!(Test-Path $appBuilderPath)) {
   Install-DesktopDependencies -Reason 'app-builder.exe missing' -Clean
 }
 
-npx electron-builder --win nsis --publish never
+if ($jsPackageManager -eq 'pnpm') {
+  pnpm exec electron-builder --win nsis --publish never
+} else {
+  npx electron-builder --win nsis --publish never
+}
 if ($LASTEXITCODE -ne 0) {
   throw 'Electron build failed.'
 }

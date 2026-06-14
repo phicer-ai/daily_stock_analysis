@@ -8,6 +8,16 @@ log() {
   echo "$1"
 }
 
+JS_PACKAGE_MANAGER="${DSA_JS_PACKAGE_MANAGER:-npm}"
+if [[ "${JS_PACKAGE_MANAGER}" != "npm" && "${JS_PACKAGE_MANAGER}" != "pnpm" ]]; then
+  echo "Unsupported DSA_JS_PACKAGE_MANAGER: ${JS_PACKAGE_MANAGER}. Use npm or pnpm."
+  exit 1
+fi
+if ! command -v "${JS_PACKAGE_MANAGER}" >/dev/null 2>&1; then
+  echo "${JS_PACKAGE_MANAGER} not found. Install it or set DSA_JS_PACKAGE_MANAGER to an available package manager."
+  exit 1
+fi
+
 PYTHON_BIN="${PYTHON_BIN:-}"
 if [[ -z "${PYTHON_BIN}" ]]; then
   if command -v python3 >/dev/null 2>&1; then
@@ -25,9 +35,9 @@ fi
 log "Building React UI (static assets)..."
 pushd "${ROOT_DIR}/apps/dsa-web" >/dev/null
 if [[ ! -d node_modules ]]; then
-  npm install
+  "${JS_PACKAGE_MANAGER}" install
 fi
-npm run build
+"${JS_PACKAGE_MANAGER}" run build
 popd >/dev/null
 
 log "Verifying static asset references (source)..."

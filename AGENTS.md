@@ -46,9 +46,10 @@
 - `AGENTS.md` 是仓库内 AI 协作规则的唯一真源。
 - `CLAUDE.md` 必须是指向 `AGENTS.md` 的软链接，用于兼容 Claude 生态。
 - `.github/copilot-instructions.md` 与 `.github/instructions/*.instructions.md` 是 GitHub Copilot / Coding Agent 的镜像或分层补充；若与本文件冲突，以 `AGENTS.md` 为准。
-- 仓库协作 skill 存放在 `.claude/skills/`，分析产物存放在 `.claude/reviews/`；前者可以入库，后者默认视为本地产物。
+- 仓库协作 skill 的版本化入口为 `.claude/skills/`；`.agents/skills/` 是同义镜像，用于兼容通用 agent 生态；二者必须以 `AGENTS.md` 为唯一真源并保持同步。
+- 分析产物存放在 `.claude/reviews/`，默认视为本地产物，不作为规则真源。
 - 根目录 `SKILL.md` 与 `docs/openclaw-skill-integration.md` 属于产品或外部集成说明，不是仓库协作规则真源。
-- 若未来新增 `.agents/skills/` 或其他 agent 专用目录，必须先明确单一真源，再通过脚本或镜像同步；禁止手工长期维护多份同义内容。
+- 若未来新增其他 agent 专用目录，必须先明确单一真源，再通过脚本或镜像同步；禁止手工长期维护多份同义内容。
 - 修改 AI 协作治理资产时，执行：
 
 ```bash
@@ -113,9 +114,26 @@ npm ci
 npm run lint
 npm run build
 
+cd ../..
+pnpm --filter dsa-web install
+pnpm --filter dsa-web run lint
+pnpm --filter dsa-web run build
+
 cd ../dsa-desktop
 npm install
 npm run build
+
+cd ../..
+pnpm --filter daily-stock-analysis-desktop install
+pnpm --filter daily-stock-analysis-desktop run build
+```
+
+JS app 根目录同时支持 npm 与 pnpm。仓库辅助脚本默认使用 npm；如需在已支持的构建和桌面端辅助脚本中使用 pnpm，设置 `DSA_JS_PACKAGE_MANAGER=pnpm`。
+
+### CodeGraph
+
+```bash
+node scripts/codegraph.mjs
 ```
 
 ### PR / CI 证据
@@ -151,10 +169,10 @@ gh run view <run_id> --log-failed
 
 | 检查项 | 来源 | 说明 | 是否阻断 |
 | --- | --- | --- | --- |
-| `ai-governance` | `.github/workflows/ci.yml` | 校验 `AGENTS.md` / `CLAUDE.md` / `.github` 指令 / `.claude/skills` 关系 | 是 |
+| `ai-governance` | `.github/workflows/ci.yml` | 校验 `AGENTS.md` / `CLAUDE.md` / `.github` 指令 / `.claude/skills` / `.agents/skills` 关系 | 是 |
 | `backend-gate` | `.github/workflows/ci.yml` | 执行 `./scripts/ci_gate.sh` | 是 |
 | `docker-build` | `.github/workflows/ci.yml` | Docker 构建与关键模块导入 smoke | 是 |
-| `web-gate` | `.github/workflows/ci.yml` | 前端改动时执行 `npm run lint` + `npm run build` | 是（触发时） |
+| `web-gate` | `.github/workflows/ci.yml` | 前端改动时执行 `npm run lint` + `npm run build`；本地可用 pnpm 等价命令 | 是（触发时） |
 | `network-smoke` | `.github/workflows/network-smoke.yml` | `pytest -m network` + `scripts/test.sh quick` | 否，观测项 |
 | `pr-review` | `.github/workflows/pr-review.yml` | PR 静态检查 + AI 审查 + 自动标签 | 否，辅助项 |
 
@@ -171,6 +189,7 @@ gh run view <run_id> --log-failed
 - Web 前端改动：
   - 适用范围：`apps/dsa-web/`
   - 默认执行：`cd apps/dsa-web && npm ci && npm run lint && npm run build`
+  - pnpm 等价：`pnpm --filter dsa-web install && pnpm --filter dsa-web run lint && pnpm --filter dsa-web run build`
   - 若涉及 API 联调、路由、状态管理、Markdown/图表渲染或认证状态，交付说明中要明确说明联动面和未覆盖风险。
 
 - 桌面端改动：
@@ -184,7 +203,7 @@ gh run view <run_id> --log-failed
   - 若涉及登录、Cookie、会话、轮询状态、字段增删或枚举变化，必须明确写出兼容性影响。
 
 - 文档与治理文件改动：
-  - 适用范围：`README.md`、`docs/**`、`AGENTS.md`、`.github/copilot-instructions.md`、`.github/instructions/**`、`.claude/skills/**`
+  - 适用范围：`README.md`、`docs/**`、`AGENTS.md`、`.github/copilot-instructions.md`、`.github/instructions/**`、`.claude/skills/**`、`.agents/skills/**`
   - 不强制代码测试。
   - 需确认命令、配置项、文件名、工作流名称与实际仓库一致。
   - 改动 AI 协作治理资产时，执行 `python scripts/check_ai_assets.py`。
@@ -229,6 +248,9 @@ gh run view <run_id> --log-failed
   - `.claude/skills/analyze-issue/SKILL.md`
   - `.claude/skills/analyze-pr/SKILL.md`
   - `.claude/skills/fix-issue/SKILL.md`
+  - `.agents/skills/analyze-issue/SKILL.md`
+  - `.agents/skills/analyze-pr/SKILL.md`
+  - `.agents/skills/fix-issue/SKILL.md`
 - 如果任务明确是 issue 分析、PR 审查、issue 修复，优先按对应 skill 执行，并将产物保存到 `.claude/reviews/`。
 - skill 中的命令、模板、验证顺序和交付结构必须与 `AGENTS.md` 保持一致。
 - skill 默认优先读取 CI / 工作流证据，再决定是否补本地验证。
