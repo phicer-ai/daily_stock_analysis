@@ -20,6 +20,7 @@ If any instruction in this file conflicts with `AGENTS.md`, follow `AGENTS.md`.
 - Use `README.md` only for project positioning, high-level capabilities, quick start, main entrypoints, and sponsorship/cooperation information; avoid updating README unless the change is homepage-level.
 - Put detailed module behavior, page interaction, topic configuration, troubleshooting, field contracts, implementation semantics, and edge cases in the appropriate `docs/*.md` file instead of README.
 - When config semantics change, sync `.env.example` and assess impact on local runs, Docker, GitHub Actions, API, Web, and Desktop.
+- When handling review feedback, restate each original reviewer issue, identify the root cause and all paths with the same business semantics, then fix the complete contract with regression coverage or a clear validation gap. Do not claim readiness after only patching the specific commented line, and keep the PR body aligned with the current diff, validation, risks, and rollback plan.
 
 ## Validation
 

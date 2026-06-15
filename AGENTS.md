@@ -247,11 +247,13 @@ gh run view <run_id> --log-failed
 - 仓库内已有以下 skill，可优先复用：
   - `.claude/skills/analyze-issue/SKILL.md`
   - `.claude/skills/analyze-pr/SKILL.md`
+  - `.claude/skills/address-review-comments/SKILL.md`
   - `.claude/skills/fix-issue/SKILL.md`
   - `.agents/skills/analyze-issue/SKILL.md`
   - `.agents/skills/analyze-pr/SKILL.md`
+  - `.agents/skills/address-review-comments/SKILL.md`
   - `.agents/skills/fix-issue/SKILL.md`
-- 如果任务明确是 issue 分析、PR 审查、issue 修复，优先按对应 skill 执行，并将产物保存到 `.claude/reviews/`。
+- 如果任务明确是 issue 分析、PR 审查、review 反馈处理、issue 修复，优先按对应 skill 执行，并将产物保存到 `.claude/reviews/`。
 - skill 中的命令、模板、验证顺序和交付结构必须与 `AGENTS.md` 保持一致。
 - skill 默认优先读取 CI / 工作流证据，再决定是否补本地验证。
 - skill 不得默认执行 `git pull`、`git push`、`git tag`、`gh pr create` 等会改变远端或当前分支状态的操作；这些操作必须要求用户确认。

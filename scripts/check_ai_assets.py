@@ -25,6 +25,7 @@ REQUIRED_SKILL_FILES = {
     "README.md",
     "analyze-issue/SKILL.md",
     "analyze-pr/SKILL.md",
+    "address-review-comments/SKILL.md",
     "fix-issue/SKILL.md",
 }
 
