@@ -29,6 +29,13 @@ REQUIRED_SKILL_FILES = {
     "fix-issue/SKILL.md",
 }
 
+REQUIRED_SKILL_METADATA = {
+    "analyze-issue/SKILL.md": "analyze-issue",
+    "analyze-pr/SKILL.md": "analyze-pr",
+    "address-review-comments/SKILL.md": "address-review-comments",
+    "fix-issue/SKILL.md": "fix-issue",
+}
+
 REQUIRED_GITIGNORE_SNIPPETS = (
     ".claude/*",
     "!.claude/skills/",
@@ -84,6 +91,38 @@ def ensure_instruction_files() -> None:
         fail(f"missing instruction files: {', '.join(sorted(missing))}")
 
 
+def ensure_skill_metadata(path: Path, relative_path: str, content: str) -> None:
+    expected_name = REQUIRED_SKILL_METADATA.get(relative_path)
+    if expected_name is None:
+        return
+
+    lines = content.splitlines()
+    if len(lines) < 4 or lines[0] != "---":
+        fail(f"{path.relative_to(ROOT)} is missing skill metadata frontmatter")
+
+    try:
+        end = lines[1:].index("---") + 1
+    except ValueError:
+        fail(f"{path.relative_to(ROOT)} has unterminated skill metadata frontmatter")
+
+    metadata = {}
+    for line in lines[1:end]:
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        metadata[key.strip()] = value.strip().strip("\"'")
+
+    if metadata.get("name") != expected_name:
+        fail(
+            f"{path.relative_to(ROOT)} metadata name must be {expected_name!r}, "
+            f"found {metadata.get('name')!r}"
+        )
+
+    description = metadata.get("description", "")
+    if not description.startswith("Use when "):
+        fail(f"{path.relative_to(ROOT)} metadata description must start with 'Use when '")
+
+
 def ensure_skill_tree(skills_dir: Path, description: str) -> None:
     ensure_file_exists(skills_dir, description)
     for relative_path in REQUIRED_SKILL_FILES:
@@ -92,6 +131,7 @@ def ensure_skill_tree(skills_dir: Path, description: str) -> None:
             fail(f"missing repository skill asset: {path.relative_to(ROOT)}")
         if path.is_file():
             content = path.read_text(encoding="utf-8")
+            ensure_skill_metadata(path, relative_path, content)
             if "AGENTS.md" not in content:
                 fail(f"{path.relative_to(ROOT)} must reference AGENTS.md as the rule source")
             if ".Codex/" in content:

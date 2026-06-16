@@ -1,3 +1,8 @@
+---
+name: analyze-issue
+description: Use when analyzing a GitHub issue in this repository for validity, priority, ownership, impact, and recommended handling.
+---
+
 # Analyze Issue
 
 分析 GitHub Issue，判断其真实性、优先级、仓库责任边界与建议动作。

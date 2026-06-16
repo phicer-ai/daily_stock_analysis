@@ -1,3 +1,8 @@
+---
+name: analyze-pr
+description: Use when reviewing a GitHub pull request in this repository for necessity, PR-template completeness, CI evidence, implementation risk, and merge readiness.
+---
+
 # Analyze PR
 
 分析 GitHub Pull Request，评估必要性、描述完整性、验证证据、主要风险与是否可直接合入。

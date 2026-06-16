@@ -1,3 +1,8 @@
+---
+name: address-review-comments
+description: Use when handling GitHub PR review feedback in this repository and checking the full business contract before applying fixes.
+---
+
 # Address Review Comments
 
 处理 GitHub PR review 反馈时，先收敛 reviewer 指出的完整业务契约，再做最小相关修复，避免只在评论行追加补丁。
