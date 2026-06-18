@@ -58,5 +58,18 @@
   "output": {
     "json": ".codegraph/out/codegraph.json",
     "markdown": ".codegraph/out/codegraph.md"
+  },
+  "database": {
+    "enabled": true,
+    "path": ".codegraph/codegraph.db",
+    "initCommand": [
+      "codegraph",
+      "init",
+      "-i"
+    ],
+    "syncCommand": [
+      "codegraph",
+      "sync"
+    ]
   }
 }

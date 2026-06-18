@@ -93,3 +93,4 @@ docs/specs/
 
 # Generated CodeGraph outputs
 .codegraph/out/
+.codegraph/codegraph.db
